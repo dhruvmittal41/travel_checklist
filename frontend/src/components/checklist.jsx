@@ -60,34 +60,31 @@ function Checklist() {
   };
 
   const handleItemSubmit = async (e) => {
-    e.preventDefault();
-    if (!newItem.trim()) return;
+  e.preventDefault();
+  if (!newItem.trim()) return;
 
-    const tempItem = {
-      id: Date.now(),
-      name: newItem,
-      completed: false,
-      category_id: selectedCategory.id,
-      added_by: username,
-    };
-    setItems((prev) => [...prev, tempItem]);
-    setNewItem('');
-
-    try {
-      const res = await axios.post(`${API_BASE}/api/items`, {
-        name: newItem,
-        completed: false,
-        category_id: selectedCategory.id,
-        added_by: username,
-      });
-      setItems((prev) =>
-        prev.map((item) => (item.id === tempItem.id ? res.data : item))
-      );
-    } catch (err) {
-      console.error('Error adding item:', err);
-      setItems((prev) => prev.filter((item) => item.id !== tempItem.id));
-    }
+  const tempItem = {
+    id: Date.now(),
+    name: newItem,
+    completed: false,
+    category_id: selectedCategory.id,
+    added_by: username,
   };
+
+  setItems((prev) => [...prev, tempItem]);
+  setNewItem('');
+
+  try {
+    const res = await axios.post(`${API_BASE}/api/items`, tempItem);
+    setItems((prev) =>
+      prev.map((item) => (item.id === tempItem.id ? res.data : item))
+    );
+  } catch (err) {
+    console.error('Error adding item:', err);
+    setItems((prev) => prev.filter((item) => item.id !== tempItem.id));
+  }
+};
+
 
   const toggleItem = async (itemId, completed) => {
     setItems((prev) =>
