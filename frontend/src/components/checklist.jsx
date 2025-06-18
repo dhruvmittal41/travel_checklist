@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Trash2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -26,6 +27,11 @@ function Checklist() {
     try {
       const res = await axios.get(`${API_BASE}/api/categories`);
       setCategories(res.data);
+      // Auto-refresh selected category
+      if (selectedCategory) {
+        const refreshed = res.data.find((c) => c.id === selectedCategory.id);
+        setSelectedCategory(refreshed || null);
+      }
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -44,9 +50,9 @@ function Checklist() {
     e.preventDefault();
     if (!newCategory.trim()) return;
     try {
-      const res = await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
-      setCategories([...categories, res.data]);
+      await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
       setNewCategory('');
+      fetchCategories(); // auto refresh
     } catch (err) {
       console.error('Error adding category:', err);
     }
@@ -56,14 +62,14 @@ function Checklist() {
     e.preventDefault();
     if (!newItem.trim()) return;
     try {
-      const res = await axios.post(`${API_BASE}/api/items`, {
+      await axios.post(`${API_BASE}/api/items`, {
         name: newItem,
         completed: false,
         category_id: selectedCategory.id,
         added_by: username
       });
-      setItems([...items, { id: res.data.id, name: newItem, completed: false, added_by: username }]);
       setNewItem('');
+      fetchItems(selectedCategory.id); // auto refresh
     } catch (err) {
       console.error('Error adding item:', err);
     }
@@ -72,13 +78,30 @@ function Checklist() {
   const toggleItem = async (itemId, completed) => {
     try {
       await axios.put(`${API_BASE}/api/items/${itemId}`, { completed: !completed });
-      setItems(
-        items.map((item) =>
-          item.id === itemId ? { ...item, completed: !completed } : item
-        )
-      );
+      fetchItems(selectedCategory.id);
     } catch (err) {
       console.error('Error toggling item:', err);
+    }
+  };
+
+  const deleteCategory = async (id) => {
+    if (!window.confirm('Delete this category?')) return;
+    try {
+      await axios.delete(`${API_BASE}/api/categories/${id}`);
+      setSelectedCategory(null);
+      fetchCategories();
+    } catch (err) {
+      console.error('Error deleting category:', err);
+    }
+  };
+
+  const deleteItem = async (id) => {
+    if (!window.confirm('Delete this item?')) return;
+    try {
+      await axios.delete(`${API_BASE}/api/items/${id}`);
+      fetchItems(selectedCategory.id);
+    } catch (err) {
+      console.error('Error deleting item:', err);
     }
   };
 
@@ -94,18 +117,26 @@ function Checklist() {
       {/* Sidebar */}
       <div className="w-full md:w-1/4 bg-white border-r shadow-md p-6 space-y-6">
         <h2 className="text-2xl font-bold text-purple-700">🗂 Categories</h2>
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {categories.map((cat) => (
             <li
               key={cat.id}
-              onClick={() => setSelectedCategory(cat)}
-              className={`p-3 rounded-lg shadow-sm cursor-pointer transition-all duration-200 ${
+              className={`p-3 rounded-lg shadow flex items-center justify-between group cursor-pointer ${
                 selectedCategory?.id === cat.id
-                  ? 'bg-purple-600 text-white font-semibold'
+                  ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 hover:bg-purple-100'
               }`}
             >
-              {cat.name}
+              <span
+                onClick={() => setSelectedCategory(cat)}
+                className="flex-1"
+              >
+                {cat.name}
+              </span>
+              <Trash2
+                className="text-red-500 w-4 h-4 opacity-0 group-hover:opacity-100 transition"
+                onClick={() => deleteCategory(cat.id)}
+              />
             </li>
           ))}
         </ul>
@@ -186,6 +217,10 @@ function Checklist() {
                     ✅ {item.name}{' '}
                     <span className="text-xs italic text-gray-500">(by {item.added_by})</span>
                   </span>
+                  <Trash2
+                    className="text-red-500 w-4 h-4 hover:scale-110 cursor-pointer"
+                    onClick={() => deleteItem(item.id)}
+                  />
                 </li>
               ))}
             </ul>
