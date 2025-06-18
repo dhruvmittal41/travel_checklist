@@ -1,106 +1,128 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+// server.js
+import express from 'express';
+import { createServer } from 'node:http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import sqlite3 from 'sqlite3';
+import { open } from 'sqlite';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Initialize Express and HTTP Server
+const app = express();
+const httpServer = createServer(app);
+
+// Enable CORS and JSON parsing
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3001;
-
-// SQLite DB setup
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./checklist.db');
-
-// Listen for Socket.IO connections
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-  });
+// Setup Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  },
 });
 
-// Emit event from within routes
-const emitUpdate = () => io.emit('update');
+// Broadcast update to all clients
+const broadcastUpdate = () => io.emit('update');
 
-// ---------------- Routes ----------------
+// Initialize SQLite database
+let db;
+const initDb = async () => {
+  db = await open({
+    filename: './checklist.db',
+    driver: sqlite3.Database,
+  });
 
-// Add Category
-app.post('/api/categories', (req, res) => {
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT
+    );
+  `);
+
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      completed INTEGER,
+      category_id INTEGER,
+      added_by TEXT,
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    );
+  `);
+};
+
+// API Endpoints
+
+// Get all categories
+app.get('/api/categories', async (req, res) => {
+  const categories = await db.all('SELECT * FROM categories');
+  res.json(categories);
+});
+
+// Add a category
+app.post('/api/categories', async (req, res) => {
   const { name } = req.body;
-  db.run('INSERT INTO categories (name) VALUES (?)', [name], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    emitUpdate();
-    res.json({ id: this.lastID, name });
-  });
+  await db.run('INSERT INTO categories (name) VALUES (?)', name);
+  broadcastUpdate();
+  res.status(201).json({ message: 'Category added' });
 });
 
-// Delete Category
-app.delete('/api/categories/:id', (req, res) => {
-  db.run('DELETE FROM categories WHERE id = ?', [req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    emitUpdate();
-    res.sendStatus(204);
-  });
+// Delete a category
+app.delete('/api/categories/:id', async (req, res) => {
+  const { id } = req.params;
+  await db.run('DELETE FROM items WHERE category_id = ?', id);
+  await db.run('DELETE FROM categories WHERE id = ?', id);
+  broadcastUpdate();
+  res.json({ message: 'Category deleted' });
 });
 
-// Get Categories
-app.get('/api/categories', (req, res) => {
-  db.all('SELECT * FROM categories', [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+// Get items for a category
+app.get('/api/items/:categoryId', async (req, res) => {
+  const { categoryId } = req.params;
+  const items = await db.all('SELECT * FROM items WHERE category_id = ?', categoryId);
+  res.json(items);
 });
 
-// Add Item
-app.post('/api/items', (req, res) => {
+// Add an item
+app.post('/api/items', async (req, res) => {
   const { name, completed, category_id, added_by } = req.body;
-  db.run(
+  const result = await db.run(
     'INSERT INTO items (name, completed, category_id, added_by) VALUES (?, ?, ?, ?)',
-    [name, completed ? 1 : 0, category_id, added_by],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-      emitUpdate();
-      res.json({ id: this.lastID, name, completed, category_id, added_by });
-    }
+    name, completed ? 1 : 0, category_id, added_by
   );
+  const item = await db.get('SELECT * FROM items WHERE id = ?', result.lastID);
+  broadcastUpdate();
+  res.status(201).json(item);
 });
 
-// Delete Item
-app.delete('/api/items/:id', (req, res) => {
-  db.run('DELETE FROM items WHERE id = ?', [req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
-    emitUpdate();
-    res.sendStatus(204);
-  });
-});
-
-// Get Items for Category
-app.get('/api/items/:categoryId', (req, res) => {
-  db.all('SELECT * FROM items WHERE category_id = ?', [req.params.categoryId], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// Toggle Item
-app.put('/api/items/:id', (req, res) => {
+// Update item completion
+app.put('/api/items/:id', async (req, res) => {
+  const { id } = req.params;
   const { completed } = req.body;
-  db.run(
-    'UPDATE items SET completed = ? WHERE id = ?',
-    [completed ? 1 : 0, req.params.id],
-    (err) => {
-      if (err) return res.status(500).json({ error: err.message });
-      emitUpdate();
-      res.sendStatus(200);
-    }
-  );
+  await db.run('UPDATE items SET completed = ? WHERE id = ?', completed ? 1 : 0, id);
+  broadcastUpdate();
+  res.json({ message: 'Item updated' });
 });
 
-server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+// Delete an item
+app.delete('/api/items/:id', async (req, res) => {
+  const { id } = req.params;
+  await db.run('DELETE FROM items WHERE id = ?', id);
+  broadcastUpdate();
+  res.json({ message: 'Item deleted' });
+});
+
+// Start the server
+const PORT = process.env.PORT || 5000;
+
+initDb().then(() => {
+  httpServer.listen(PORT, () => {
+    console.log(`✅ Server is running on http://localhost:${PORT}`);
+  });
+});
