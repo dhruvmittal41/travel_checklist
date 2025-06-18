@@ -74,7 +74,12 @@ function Checklist() {
     setNewItem('');
 
     try {
-      const res = await axios.post(`${API_BASE}/api/items`, tempItem);
+      const res = await axios.post(`${API_BASE}/api/items`, {
+        name: newItem,
+        completed: false,
+        category_id: selectedCategory.id,
+        added_by: username,
+      });
       setItems((prev) =>
         prev.map((item) => (item.id === tempItem.id ? res.data : item))
       );
@@ -132,9 +137,9 @@ function Checklist() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen font-sans bg-gradient-to-br from-purple-50 to-white text-gray-800">
+    <div className="flex flex-col md:flex-row h-screen w-full font-sans bg-gradient-to-br from-purple-50 to-white text-gray-800">
       {/* Sidebar */}
-      <div className="w-full md:w-1/4 bg-white border-r shadow-md p-6 space-y-6">
+      <div className="w-full md:w-1/4 bg-white border-r shadow-md p-6 space-y-6 overflow-y-auto">
         <h2 className="text-2xl font-bold text-purple-700">🗂 Categories</h2>
         <ul className="space-y-3">
           {categories.map((cat) => (
@@ -180,7 +185,7 @@ function Checklist() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 overflow-y-auto">
         {!usernameSubmitted ? (
           <form
             onSubmit={handleUsernameSubmit}
@@ -202,7 +207,7 @@ function Checklist() {
             </button>
           </form>
         ) : selectedCategory ? (
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-4xl mx-auto h-full flex flex-col">
             <h2 className="text-3xl font-semibold text-purple-700 mb-6 text-center">
               {selectedCategory.name}
             </h2>
@@ -223,7 +228,7 @@ function Checklist() {
               </button>
             </form>
 
-            <ul className="space-y-3">
+            <ul className="space-y-3 flex-1 overflow-y-auto">
               {items.map((item) => (
                 <li
                   key={item.id}
