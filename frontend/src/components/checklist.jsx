@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
+const API_BASE = import.meta.env.VITE_API_URL;
+
 function Checklist() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -22,41 +24,63 @@ function Checklist() {
   }, [selectedCategory]);
 
   const fetchCategories = async () => {
-    const res = await axios.get('http://localhost:5001/api/categories');
-    setCategories(res.data);
+    try {
+      const res = await axios.get(`${API_BASE}/api/categories`);
+      setCategories(res.data);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
   };
 
   const fetchItems = async (categoryId) => {
-    const res = await axios.get(`http://localhost:5001/api/items/${categoryId}`);
-    setItems(res.data);
+    try {
+      const res = await axios.get(`${API_BASE}/api/items/${categoryId}`);
+      setItems(res.data);
+    } catch (err) {
+      console.error('Error fetching items:', err);
+    }
   };
 
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
-    const res = await axios.post('http://localhost:5001/api/categories', { name: newCategory });
-    setCategories([...categories, res.data]);
-    setNewCategory('');
+    try {
+      const res = await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
+      setCategories([...categories, res.data]);
+      setNewCategory('');
+    } catch (err) {
+      console.error('Error adding category:', err);
+    }
   };
 
   const handleItemSubmit = async (e) => {
     e.preventDefault();
     if (!newItem.trim()) return;
-    const res = await axios.post('http://localhost:5001/api/items', {
-      name: newItem,
-      completed: false,
-      category_id: selectedCategory.id,
-      added_by: username
-    });
-    setItems([...items, { id: res.data.id, name: newItem, completed: false, added_by: username }]);
-    setNewItem('');
+    try {
+      const res = await axios.post(`${API_BASE}/api/items`, {
+        name: newItem,
+        completed: false,
+        category_id: selectedCategory.id,
+        added_by: username
+      });
+      setItems([...items, { id: res.data.id, name: newItem, completed: false, added_by: username }]);
+      setNewItem('');
+    } catch (err) {
+      console.error('Error adding item:', err);
+    }
   };
 
   const toggleItem = async (itemId, completed) => {
-    await axios.put(`http://localhost:5001/api/items/${itemId}`, { completed: !completed });
-    setItems(
-      items.map((item) => (item.id === itemId ? { ...item, completed: !completed } : item))
-    );
+    try {
+      await axios.put(`${API_BASE}/api/items/${itemId}`, { completed: !completed });
+      setItems(
+        items.map((item) =>
+          item.id === itemId ? { ...item, completed: !completed } : item
+        )
+      );
+    } catch (err) {
+      console.error('Error toggling item:', err);
+    }
   };
 
   const handleUsernameSubmit = (e) => {
@@ -68,7 +92,7 @@ function Checklist() {
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen">
-      {/* Sidebar for Categories */}
+      {/* Sidebar */}
       <div className="w-full md:w-1/4 p-4 bg-purple-100 overflow-y-auto">
         <h2 className="text-xl font-bold mb-4 text-purple-800">Categories</h2>
         <ul className="space-y-2">
@@ -126,7 +150,9 @@ function Checklist() {
           </form>
         ) : selectedCategory ? (
           <div>
-            <h2 className="text-2xl font-semibold mb-4 text-purple-700">{selectedCategory.name}</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-purple-700">
+              {selectedCategory.name}
+            </h2>
 
             <form onSubmit={handleItemSubmit} className="flex flex-col md:flex-row gap-2 mb-4">
               <input
@@ -152,7 +178,9 @@ function Checklist() {
                 >
                   <span
                     onClick={() => toggleItem(item.id, item.completed)}
-                    className={`cursor-pointer flex-1 ${item.completed ? 'line-through text-gray-500' : ''}`}
+                    className={`cursor-pointer flex-1 ${
+                      item.completed ? 'line-through text-gray-500' : ''
+                    }`}
                   >
                     {item.name} <span className="text-xs italic">(added by {item.added_by})</span>
                   </span>
