@@ -26,10 +26,6 @@ function Checklist() {
     try {
       const res = await axios.get(`${API_BASE}/api/categories`);
       setCategories(res.data);
-      if (selectedCategory) {
-        const refreshed = res.data.find((c) => c.id === selectedCategory.id);
-        setSelectedCategory(refreshed || null);
-      }
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -47,59 +43,84 @@ function Checklist() {
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
+
+    const tempCategory = { id: Date.now(), name: newCategory };
+    setCategories((prev) => [...prev, tempCategory]);
+    setNewCategory('');
+
     try {
-      await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
-      setNewCategory('');
-      fetchCategories();
+      const res = await axios.post(`${API_BASE}/api/categories`, { name: tempCategory.name });
+      setCategories((prev) =>
+        prev.map((cat) => (cat.id === tempCategory.id ? res.data : cat))
+      );
     } catch (err) {
       console.error('Error adding category:', err);
+      setCategories((prev) => prev.filter((cat) => cat.id !== tempCategory.id));
     }
   };
 
   const handleItemSubmit = async (e) => {
     e.preventDefault();
     if (!newItem.trim()) return;
+
+    const tempItem = {
+      id: Date.now(),
+      name: newItem,
+      completed: false,
+      category_id: selectedCategory.id,
+      added_by: username,
+    };
+    setItems((prev) => [...prev, tempItem]);
+    setNewItem('');
+
     try {
-      await axios.post(`${API_BASE}/api/items`, {
-        name: newItem,
-        completed: false,
-        category_id: selectedCategory.id,
-        added_by: username,
-      });
-      setNewItem('');
-      fetchItems(selectedCategory.id);
+      const res = await axios.post(`${API_BASE}/api/items`, tempItem);
+      setItems((prev) =>
+        prev.map((item) => (item.id === tempItem.id ? res.data : item))
+      );
     } catch (err) {
       console.error('Error adding item:', err);
+      setItems((prev) => prev.filter((item) => item.id !== tempItem.id));
     }
   };
 
   const toggleItem = async (itemId, completed) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, completed: !completed } : item
+      )
+    );
+
     try {
       await axios.put(`${API_BASE}/api/items/${itemId}`, { completed: !completed });
-      fetchItems(selectedCategory.id);
     } catch (err) {
       console.error('Error toggling item:', err);
     }
   };
 
   const deleteCategory = async (id) => {
-    if (!window.confirm('Delete this category and its items?')) return;
+    if (!window.confirm('Delete this category?')) return;
+    const backup = [...categories];
+    setCategories((prev) => prev.filter((cat) => cat.id !== id));
+    if (selectedCategory?.id === id) setSelectedCategory(null);
+
     try {
       await axios.delete(`${API_BASE}/api/categories/${id}`);
-      setSelectedCategory(null);
-      fetchCategories();
     } catch (err) {
       console.error('Error deleting category:', err);
+      setCategories(backup);
     }
   };
 
   const deleteItem = async (id) => {
-    if (!window.confirm('Delete this item?')) return;
+    const backup = [...items];
+    setItems((prev) => prev.filter((item) => item.id !== id));
+
     try {
       await axios.delete(`${API_BASE}/api/items/${id}`);
-      fetchItems(selectedCategory.id);
     } catch (err) {
       console.error('Error deleting item:', err);
+      setItems(backup);
     }
   };
 
@@ -125,7 +146,10 @@ function Checklist() {
                   : 'bg-gray-100 hover:bg-purple-100'
               }`}
             >
-              <span onClick={() => setSelectedCategory(cat)} className="flex-1">
+              <span
+                onClick={() => setSelectedCategory(cat)}
+                className="flex-1"
+              >
                 {cat.name}
               </span>
               <span
