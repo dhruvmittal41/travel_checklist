@@ -17,15 +17,17 @@ function Checklist() {
   }, []);
 
   useEffect(() => {
-    if (selectedCategory) {
-      fetchItems(selectedCategory.id);
-    }
+    if (selectedCategory) fetchItems(selectedCategory.id);
   }, [selectedCategory]);
 
   const fetchCategories = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/categories`);
       setCategories(res.data);
+      if (selectedCategory) {
+        const refreshed = res.data.find((c) => c.id === selectedCategory.id);
+        setSelectedCategory(refreshed || null);
+      }
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -43,58 +45,45 @@ function Checklist() {
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
-
-    const tempCategory = { id: Date.now(), name: newCategory };
-    setCategories((prev) => [...prev, tempCategory]);
-    setNewCategory('');
-
     try {
-      const res = await axios.post(`${API_BASE}/api/categories`, { name: tempCategory.name });
-      setCategories((prev) =>
-        prev.map((cat) => (cat.id === tempCategory.id ? res.data : cat))
-      );
+      await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
+      setNewCategory('');
+      fetchCategories();
     } catch (err) {
       console.error('Error adding category:', err);
-      setCategories((prev) => prev.filter((cat) => cat.id !== tempCategory.id));
     }
   };
 
   const handleItemSubmit = async (e) => {
-  e.preventDefault();
-  if (!newItem.trim()) return;
+    e.preventDefault();
+    if (!newItem.trim()) return;
 
-  const tempItem = {
-    id: Date.now(),
-    name: newItem,
-    completed: false,
-    category_id: selectedCategory.id,
-    added_by: username,
-  };
+    const tempItem = {
+      id: Date.now(),
+      name: newItem,
+      completed: false,
+      category_id: selectedCategory.id,
+      added_by: username,
+    };
 
-  setItems((prev) => [...prev, tempItem]);
-  setNewItem('');
-
-  try {
-    const res = await axios.post(`${API_BASE}/api/items`, tempItem);
-    setItems((prev) =>
-      prev.map((item) => (item.id === tempItem.id ? res.data : item))
-    );
-  } catch (err) {
-    console.error('Error adding item:', err);
-    setItems((prev) => prev.filter((item) => item.id !== tempItem.id));
-  }
-};
-
-
-  const toggleItem = async (itemId, completed) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, completed: !completed } : item
-      )
-    );
+    setItems((prev) => [...prev, tempItem]);
+    setNewItem('');
 
     try {
+      const res = await axios.post(`${API_BASE}/api/items`, tempItem);
+      setItems((prev) =>
+        prev.map((item) => (item.id === tempItem.id ? res.data : item))
+      );
+    } catch (err) {
+      console.error('Error adding item:', err);
+      setItems((prev) => prev.filter((item) => item.id !== tempItem.id));
+    }
+  };
+
+  const toggleItem = async (itemId, completed) => {
+    try {
       await axios.put(`${API_BASE}/api/items/${itemId}`, { completed: !completed });
+      fetchItems(selectedCategory.id);
     } catch (err) {
       console.error('Error toggling item:', err);
     }
@@ -102,27 +91,22 @@ function Checklist() {
 
   const deleteCategory = async (id) => {
     if (!window.confirm('Delete this category?')) return;
-    const backup = [...categories];
-    setCategories((prev) => prev.filter((cat) => cat.id !== id));
-    if (selectedCategory?.id === id) setSelectedCategory(null);
-
     try {
       await axios.delete(`${API_BASE}/api/categories/${id}`);
+      setSelectedCategory(null);
+      fetchCategories();
     } catch (err) {
       console.error('Error deleting category:', err);
-      setCategories(backup);
     }
   };
 
   const deleteItem = async (id) => {
-    const backup = [...items];
-    setItems((prev) => prev.filter((item) => item.id !== id));
-
+    if (!window.confirm('Delete this item?')) return;
     try {
       await axios.delete(`${API_BASE}/api/items/${id}`);
+      fetchItems(selectedCategory.id);
     } catch (err) {
       console.error('Error deleting item:', err);
-      setItems(backup);
     }
   };
 
@@ -134,15 +118,15 @@ function Checklist() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full font-sans bg-gradient-to-br from-purple-50 to-white text-gray-800">
+    <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-purple-50 to-white">
       {/* Sidebar */}
-      <div className="w-full md:w-1/4 bg-white border-r shadow-md p-6 space-y-6 overflow-y-auto">
-        <h2 className="text-2xl font-bold text-purple-700">🗂 Categories</h2>
-        <ul className="space-y-3">
+      <div className="w-full md:w-1/4 bg-white border-r p-4 md:p-6 shadow-sm">
+        <h2 className="text-xl md:text-2xl font-bold text-purple-700 mb-4">📁 Categories</h2>
+        <ul className="space-y-2 mb-4 overflow-y-auto max-h-[60vh]">
           {categories.map((cat) => (
             <li
               key={cat.id}
-              className={`p-3 rounded-lg shadow flex items-center justify-between group cursor-pointer ${
+              className={`flex justify-between items-center px-3 py-2 rounded-lg shadow-sm transition ${
                 selectedCategory?.id === cat.id
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 hover:bg-purple-100'
@@ -150,31 +134,31 @@ function Checklist() {
             >
               <span
                 onClick={() => setSelectedCategory(cat)}
-                className="flex-1"
+                className="flex-1 cursor-pointer"
               >
                 {cat.name}
               </span>
-              <span
-                className="text-red-500 hover:text-red-700 cursor-pointer ml-2"
+              <button
                 onClick={() => deleteCategory(cat.id)}
+                className="text-red-500 hover:text-red-700 ml-2"
               >
                 ❌
-              </span>
+              </button>
             </li>
           ))}
         </ul>
 
-        <form onSubmit={handleCategorySubmit} className="flex flex-col gap-3">
+        <form onSubmit={handleCategorySubmit} className="space-y-2">
           <input
             type="text"
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
-            placeholder="New category name"
-            className="p-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="New category"
+            className="w-full px-3 py-2 border rounded shadow-sm focus:ring focus:ring-purple-300"
           />
           <button
             type="submit"
-            className="bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition-all"
+            className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700"
           >
             ➕ Add Category
           </button>
@@ -182,30 +166,30 @@ function Checklist() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
         {!usernameSubmitted ? (
           <form
             onSubmit={handleUsernameSubmit}
-            className="flex flex-col items-center justify-center h-full space-y-6"
+            className="flex flex-col items-center justify-center h-full space-y-4"
           >
-            <h2 className="text-2xl font-bold text-gray-700">Welcome 👋</h2>
+            <h2 className="text-2xl font-semibold">Welcome 👋</h2>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Enter your name"
-              className="p-3 border border-gray-300 rounded w-72 shadow focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="px-4 py-2 border rounded shadow-sm focus:ring focus:ring-green-400"
             />
             <button
               type="submit"
-              className="bg-green-500 text-white py-2 px-6 rounded hover:bg-green-600 transition-all"
+              className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
             >
               Continue
             </button>
           </form>
         ) : selectedCategory ? (
-          <div className="max-w-4xl mx-auto h-full flex flex-col">
-            <h2 className="text-3xl font-semibold text-purple-700 mb-6 text-center">
+          <div className="max-w-3xl mx-auto">
+            <h2 className="text-2xl md:text-3xl font-bold text-purple-700 text-center mb-6">
               {selectedCategory.name}
             </h2>
 
@@ -215,21 +199,21 @@ function Checklist() {
                 value={newItem}
                 onChange={(e) => setNewItem(e.target.value)}
                 placeholder="Add new item"
-                className="flex-1 p-3 border rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="flex-1 px-4 py-2 border rounded shadow-sm focus:ring focus:ring-blue-400"
               />
               <button
                 type="submit"
-                className="bg-blue-500 text-white px-5 py-2 rounded hover:bg-blue-600 transition-all"
+                className="bg-blue-500 text-white px-5 py-2 rounded hover:bg-blue-600"
               >
                 ➕ Add Item
               </button>
             </form>
 
-            <ul className="space-y-3 flex-1 overflow-y-auto">
+            <ul className="space-y-3">
               {items.map((item) => (
                 <li
                   key={item.id}
-                  className="flex justify-between items-center p-4 bg-white shadow rounded border border-gray-100 hover:bg-gray-50 transition-all"
+                  className="flex justify-between items-center p-3 bg-white border shadow rounded hover:bg-gray-50"
                 >
                   <span
                     onClick={() => toggleItem(item.id, item.completed)}
@@ -237,22 +221,24 @@ function Checklist() {
                       item.completed ? 'line-through text-gray-400' : 'text-gray-800'
                     }`}
                   >
-                    ✅ {item.name}{' '}
-                    <span className="text-xs italic text-gray-500">(by {item.added_by})</span>
+                    ✅ {item.name || '(No name)'}{' '}
+                    <span className="text-xs italic text-gray-500">
+                      (by {item.added_by || 'Unknown'})
+                    </span>
                   </span>
-                  <span
-                    className="text-red-500 hover:text-red-700 cursor-pointer ml-2"
+                  <button
                     onClick={() => deleteItem(item.id)}
+                    className="text-red-500 hover:text-red-700 ml-2"
                   >
                     ❌
-                  </span>
+                  </button>
                 </li>
               ))}
             </ul>
           </div>
         ) : (
-          <p className="text-center text-gray-500 text-lg mt-16">
-            Please select a category from the left to get started.
+          <p className="text-center text-gray-500 text-lg mt-10">
+            Please select a category from the left to begin.
           </p>
         )}
       </div>
