@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_URL;
+const socket = io(API_BASE);
 
 function Checklist() {
   const [categories, setCategories] = useState([]);
@@ -12,21 +14,35 @@ function Checklist() {
   const [username, setUsername] = useState('');
   const [usernameSubmitted, setUsernameSubmitted] = useState(false);
 
+  // Fetch categories on mount
   useEffect(() => {
     fetchCategories();
   }, []);
 
+  // Fetch items when category changes
   useEffect(() => {
     if (selectedCategory) fetchItems(selectedCategory.id);
+  }, [selectedCategory]);
+
+  // Socket update listener
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchCategories();
+      if (selectedCategory) fetchItems(selectedCategory.id);
+    };
+
+    socket.on('update', handleUpdate);
+    return () => socket.off('update', handleUpdate);
   }, [selectedCategory]);
 
   const fetchCategories = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/categories`);
       setCategories(res.data);
+
       if (selectedCategory) {
-        const refreshed = res.data.find((c) => c.id === selectedCategory.id);
-        setSelectedCategory(refreshed || null);
+        const updated = res.data.find((c) => c.id === selectedCategory.id);
+        setSelectedCategory(updated || null);
       }
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -45,6 +61,7 @@ function Checklist() {
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
+
     try {
       await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
       setNewCategory('');
@@ -56,7 +73,7 @@ function Checklist() {
 
   const handleItemSubmit = async (e) => {
     e.preventDefault();
-    if (!newItem.trim()) return;
+    if (!newItem.trim() || !selectedCategory) return;
 
     const tempItem = {
       id: Date.now(),
@@ -112,15 +129,13 @@ function Checklist() {
 
   const handleUsernameSubmit = (e) => {
     e.preventDefault();
-    if (username.trim()) {
-      setUsernameSubmitted(true);
-    }
+    if (username.trim()) setUsernameSubmitted(true);
   };
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gradient-to-br from-purple-50 to-white">
       {/* Sidebar */}
-      <div className="w-full md:w-1/4 bg-white border-r p-4 md:p-6 shadow-sm">
+      <aside className="w-full md:w-1/4 bg-white border-r p-4 md:p-6 shadow-sm">
         <h2 className="text-xl md:text-2xl font-bold text-purple-700 mb-4">📁 Categories</h2>
         <ul className="space-y-2 mb-4 overflow-y-auto max-h-[60vh]">
           {categories.map((cat) => (
@@ -163,10 +178,10 @@ function Checklist() {
             ➕ Add Category
           </button>
         </form>
-      </div>
+      </aside>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 md:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         {!usernameSubmitted ? (
           <form
             onSubmit={handleUsernameSubmit}
@@ -241,7 +256,7 @@ function Checklist() {
             Please select a category from the left to begin.
           </p>
         )}
-      </div>
+      </main>
     </div>
   );
 }
