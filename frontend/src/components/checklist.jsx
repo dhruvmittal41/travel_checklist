@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-
 const API_BASE = import.meta.env.VITE_API_URL;
 
 function Checklist() {
@@ -27,7 +26,6 @@ function Checklist() {
     try {
       const res = await axios.get(`${API_BASE}/api/categories`);
       setCategories(res.data);
-      // Auto-refresh selected category
       if (selectedCategory) {
         const refreshed = res.data.find((c) => c.id === selectedCategory.id);
         setSelectedCategory(refreshed || null);
@@ -52,7 +50,7 @@ function Checklist() {
     try {
       await axios.post(`${API_BASE}/api/categories`, { name: newCategory });
       setNewCategory('');
-      fetchCategories(); // auto refresh
+      fetchCategories();
     } catch (err) {
       console.error('Error adding category:', err);
     }
@@ -66,10 +64,10 @@ function Checklist() {
         name: newItem,
         completed: false,
         category_id: selectedCategory.id,
-        added_by: username
+        added_by: username,
       });
       setNewItem('');
-      fetchItems(selectedCategory.id); // auto refresh
+      fetchItems(selectedCategory.id);
     } catch (err) {
       console.error('Error adding item:', err);
     }
@@ -85,7 +83,7 @@ function Checklist() {
   };
 
   const deleteCategory = async (id) => {
-    if (!window.confirm('Delete this category?')) return;
+    if (!window.confirm('Delete this category and its items?')) return;
     try {
       await axios.delete(`${API_BASE}/api/categories/${id}`);
       setSelectedCategory(null);
@@ -127,16 +125,15 @@ function Checklist() {
                   : 'bg-gray-100 hover:bg-purple-100'
               }`}
             >
-              <span
-                onClick={() => setSelectedCategory(cat)}
-                className="flex-1"
-              >
+              <span onClick={() => setSelectedCategory(cat)} className="flex-1">
                 {cat.name}
               </span>
-              <Trash2
-                className="text-red-500 w-4 h-4 opacity-0 group-hover:opacity-100 transition"
+              <span
+                className="text-red-500 hover:text-red-700 cursor-pointer ml-2"
                 onClick={() => deleteCategory(cat.id)}
-              />
+              >
+                ❌
+              </span>
             </li>
           ))}
         </ul>
@@ -218,12 +215,11 @@ function Checklist() {
                     <span className="text-xs italic text-gray-500">(by {item.added_by})</span>
                   </span>
                   <span
-  className="text-red-500 hover:text-red-700 cursor-pointer ml-2"
-  onClick={() => deleteCategory(cat.id)}
->
-  ❌
-</span>
-
+                    className="text-red-500 hover:text-red-700 cursor-pointer ml-2"
+                    onClick={() => deleteItem(item.id)}
+                  >
+                    ❌
+                  </span>
                 </li>
               ))}
             </ul>
