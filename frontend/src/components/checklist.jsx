@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Trash2 } from 'lucide-react';
+
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -217,10 +217,13 @@ function Checklist() {
                     ✅ {item.name}{' '}
                     <span className="text-xs italic text-gray-500">(by {item.added_by})</span>
                   </span>
-                  <Trash2
-                    className="text-red-500 w-4 h-4 hover:scale-110 cursor-pointer"
-                    onClick={() => deleteItem(item.id)}
-                  />
+                  <span
+  className="text-red-500 hover:text-red-700 cursor-pointer ml-2"
+  onClick={() => deleteCategory(cat.id)}
+>
+  ❌
+</span>
+
                 </li>
               ))}
             </ul>
